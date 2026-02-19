@@ -55,7 +55,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
 
     try {
-      final service = BeaconReportService();
+      final service = appState.beaconReportService;
       final result = await service.getReportsBetween(
         accountToken: user.accountToken,
         beaconIdToPList: {widget.beacon.beaconId: plist},
