@@ -24,6 +24,10 @@ class AnisetteService {
 
   AnisetteService({http.Client? client}) : _client = client ?? http.Client();
 
+  /// Releases the underlying HTTP client. Call when the service is no longer
+  /// needed (e.g. from a [ChangeNotifier.dispose] override).
+  void dispose() => _client.close();
+
   /// Fetches the list of suggested public Anisette servers from the
   /// SideStore GitHub repository.
   Future<List<AnisetteServerSuggestion>> fetchServerSuggestions() async {

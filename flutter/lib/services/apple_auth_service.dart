@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
@@ -145,6 +146,10 @@ class AppleAuthService {
   })  : _httpClient = httpClient ?? http.Client(),
         _storage = storage ?? SecureCredentialStorage();
 
+  /// Releases the underlying HTTP client. Call when the service is no longer
+  /// needed (e.g. from a [ChangeNotifier.dispose] override).
+  void dispose() => _httpClient.close();
+
   /// Returns the stored [AppleUserData] if a previous session exists,
   /// or [null] if the user has not logged in.
   Future<AppleUserData?> getStoredUser() async {
@@ -195,7 +200,12 @@ class AppleAuthService {
       return LoginResponse(state: LoginState.loggedIn, user: user);
     }
 
-    // 2FA required – parse available methods
+    // Treat '2FA_REQUIRED' explicitly; any other non-LOGGED_IN state is also
+    // treated as requiring 2FA so that future states are handled gracefully.
+    if (kDebugMode && stateStr != '2FA_REQUIRED') {
+      debugPrint('[AppleAuthService] Unexpected loginState "$stateStr" – '
+          'treating as 2FA_REQUIRED');
+    }
     final rawMethods = body['loginMethods'] as List<dynamic>? ?? [];
     final methods = rawMethods.map((m) {
       final map = m as Map<String, dynamic>;
@@ -282,8 +292,19 @@ class AppleAuthService {
   // ---------------------------------------------------------------------------
 
   Future<void> _persistUser(AppleUserData user) async {
-    await _storage.write(_keyEmail, user.email);
-    await _storage.write(_keyToken, user.accountToken);
+    await _storage.write(_keyEmail, _validateForStorage(user.email, 'email'));
+    await _storage.write(
+        _keyToken, _validateForStorage(user.accountToken, 'account token'));
+  }
+
+  /// Validates that [value] contains no null bytes or other characters that
+  /// could cause issues with the underlying secure storage implementation.
+  String _validateForStorage(String value, String fieldName) {
+    if (value.contains('\u0000')) {
+      throw AppleLoginException(
+          'Invalid $fieldName: contains disallowed characters');
+    }
+    return value;
   }
 
   Map<String, dynamic> _tryDecodeBody(String body) {

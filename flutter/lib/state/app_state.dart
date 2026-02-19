@@ -112,6 +112,11 @@ class AppState extends ChangeNotifier {
   /// Cached per-beacon latest report for O(1) lookups.
   final Map<String, BeaconLocationReport> _latestReportCache = {};
 
+  /// Incremented after each successful [refreshReports] so that the map screen
+  /// can detect when markers need to be rebuilt.
+  int _reportVersion = 0;
+  int get reportVersion => _reportVersion;
+
   Map<String, List<BeaconLocationReport>> get latestReports =>
       Map.unmodifiable(_latestReports);
 
@@ -156,6 +161,7 @@ class AppState extends ChangeNotifier {
         _latestReportCache[entry.key] = entry.value
             .reduce((a, b) => a.timestamp > b.timestamp ? a : b);
       }
+      _reportVersion++;
     } catch (e) {
       _reportsError = e.toString();
     } finally {
@@ -166,4 +172,11 @@ class AppState extends ChangeNotifier {
 
   BeaconLocationReport? latestReportFor(String beaconId) =>
       _latestReportCache[beaconId];
+
+  @override
+  void dispose() {
+    _authService.dispose();
+    _reportService.dispose();
+    super.dispose();
+  }
 }

@@ -22,6 +22,53 @@ class _MapScreenState extends State<MapScreen> {
   final MapController _mapController = MapController();
   BeaconInformation? _selectedBeacon;
 
+  // --- Marker cache ----------------------------------------------------------
+  // Markers depend on the beacon list, their latest reports, and the current
+  // selection. Re-building them on every frame is wasteful. We cache them and
+  // rebuild only when the inputs actually change.
+
+  List<Marker> _cachedMarkers = [];
+  int _markersBuiltForReportVersion = -1;
+  String? _markersBuiltForSelectedBeaconId;
+  int _markersBuiltForBeaconCount = -1;
+
+  List<Marker> _getMarkers(
+      AppState appState, List<BeaconInformation> beacons) {
+    final currentVersion = appState.reportVersion;
+    final currentSelectedId = _selectedBeacon?.beaconId;
+    final currentCount = beacons.length;
+
+    if (_markersBuiltForReportVersion == currentVersion &&
+        _markersBuiltForSelectedBeaconId == currentSelectedId &&
+        _markersBuiltForBeaconCount == currentCount) {
+      return _cachedMarkers;
+    }
+
+    _cachedMarkers = beacons.map((b) {
+      final report = appState.latestReportFor(b.beaconId);
+      if (report == null) return null;
+      return Marker(
+        point: LatLng(report.latitude, report.longitude),
+        width: 40,
+        height: 40,
+        child: GestureDetector(
+          onTap: () => _selectBeacon(b),
+          child: _MarkerIcon(
+            beacon: b,
+            selected: _selectedBeacon?.beaconId == b.beaconId,
+          ),
+        ),
+      );
+    }).whereType<Marker>().toList();
+
+    _markersBuiltForReportVersion = currentVersion;
+    _markersBuiltForSelectedBeaconId = currentSelectedId;
+    _markersBuiltForBeaconCount = currentCount;
+
+    return _cachedMarkers;
+  }
+  // ---------------------------------------------------------------------------
+
   void _selectBeacon(BeaconInformation beacon) {
     setState(() => _selectedBeacon = beacon);
 
@@ -122,25 +169,7 @@ class _MapScreenState extends State<MapScreen> {
 
   Widget _buildMap(
       AppState appState, List<BeaconInformation> beacons) {
-    final markers = beacons
-        .map((b) {
-          final report = appState.latestReportFor(b.beaconId);
-          if (report == null) return null;
-          return Marker(
-            point: LatLng(report.latitude, report.longitude),
-            width: 40,
-            height: 40,
-            child: GestureDetector(
-              onTap: () => _selectBeacon(b),
-              child: _MarkerIcon(
-                beacon: b,
-                selected: _selectedBeacon?.beaconId == b.beaconId,
-              ),
-            ),
-          );
-        })
-        .whereType<Marker>()
-        .toList();
+    final markers = _getMarkers(appState, beacons);
 
     final center = markers.isNotEmpty
         ? markers.first.point

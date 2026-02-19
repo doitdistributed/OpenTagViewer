@@ -187,7 +187,8 @@ class _DeviceInfoScreenState extends State<DeviceInfoScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Emoji (optional)',
                         border: OutlineInputBorder(),
-                        helperText: 'Single emoji character',
+                        helperText:
+                            'Single simple emoji character (no skin tones or combined emojis)',
                       ),
                       maxLength: 2,
                     ),
