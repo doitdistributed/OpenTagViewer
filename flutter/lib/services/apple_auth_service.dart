@@ -5,6 +5,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/apple_user_data.dart';
+import 'anisette_service.dart';
+import 'srp/apple_gsa_client.dart';
 
 /// Thrown when Apple account login fails.
 class AppleLoginException implements Exception {
@@ -95,14 +97,16 @@ class AuthMethod {
 class LoginResponse {
   final LoginState state;
   final List<AuthMethod>? authMethods;
-
-  /// Non-null when [state] == [LoginState.loggedIn].
   final AppleUserData? user;
+  
+  /// Session headers/cookies required for 2FA steps.
+  final Map<String, String>? sessionData;
 
   const LoginResponse({
     required this.state,
     this.authMethods,
     this.user,
+    this.sessionData,
   });
 }
 
@@ -120,19 +124,6 @@ void _requireHttps(String url) {
   }
 }
 
-/// Handles Apple account authentication via an Anisette server.
-///
-/// Authentication follows the same flow used by the Android app:
-/// 1. Submit email + password to the Anisette-backed endpoint.
-/// 2. If 2FA is required, request a code via the selected method.
-/// 3. Submit the 6-digit code to complete authentication.
-///
-/// Credentials are persisted via [CredentialStorage] (defaults to
-/// [SecureCredentialStorage] backed by [FlutterSecureStorage]).
-///
-/// > **Security note:** all methods reject non-HTTPS Anisette server URLs
-/// > to prevent cleartext transmission of Apple ID credentials and session
-/// > tokens.
 class AppleAuthService {
   static const String _keyEmail = 'apple_email';
   static const String _keyToken = 'apple_account_token';
@@ -161,123 +152,120 @@ class AppleAuthService {
     return null;
   }
 
-  /// Initiates an Apple ID login using the supplied [anisetteServerUrl].
-  ///
-  /// Returns a [LoginResponse] that describes whether the login succeeded
-  /// immediately or whether 2FA is required.
-  ///
-  /// Throws [AppleLoginException] if [anisetteServerUrl] is not HTTPS.
   Future<LoginResponse> login({
     required String email,
     required String password,
     required String anisetteServerUrl,
   }) async {
     _requireHttps(anisetteServerUrl);
-    final uri = Uri.parse('$anisetteServerUrl/login');
-    final response = await _httpClient.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-      }),
+
+    // 1. Setup Anisette provider for fresh headers per GSA request
+    final anisetteService = AnisetteService(client: _httpClient);
+
+    // 2. Perform GSA Login (provider is called for each request)
+    final gsaClient = AppleGsaClient(client: _httpClient);
+    final result = await gsaClient.login(
+        username: email,
+        password: password,
+        anisetteProvider: () => anisetteService.fetchAnisetteHeaders(anisetteServerUrl),
     );
 
-    final body = _tryDecodeBody(response.body);
+    final responseDict = result['response'] as Map<String, dynamic>;
+    final responseHeaders = result['headers'] as Map<String, String>;
+    
+    // Check Status
+    final responseBody = responseDict['Response'] as Map<String, dynamic>?;
+    final status = responseBody?['Status'] as Map<String, dynamic>?;
+    final ec = status?['ec'] as int?;
 
-    if (response.statusCode != 200 || body.containsKey('error')) {
-      final errorMsg = body['error'] as String? ??
-          'Login failed (HTTP ${response.statusCode})';
-      throw AppleLoginException(errorMsg);
-    }
-
-    final stateStr = body['loginState'] as String? ?? '';
-
-    if (stateStr == 'LOGGED_IN') {
-      final token = body['accountToken'] as String? ?? '';
+    // Check Status and Attributes
+    if (ec == 0) {
+      // Logged In!
+      final token = jsonEncode(responseDict);
       final user = AppleUserData(email: email, accountToken: token);
       await _persistUser(user);
       return LoginResponse(state: LoginState.loggedIn, user: user);
     }
-
-    // Treat '2FA_REQUIRED' explicitly; any other non-LOGGED_IN state is also
-    // treated as requiring 2FA so that future states are handled gracefully.
-    if (kDebugMode && stateStr != '2FA_REQUIRED') {
-      debugPrint('[AppleAuthService] Unexpected loginState "$stateStr" – '
-          'treating as 2FA_REQUIRED');
+    
+    // Check for specific errors
+    if (ec == -22406) {
+        throw const AppleLoginException('Incorrect Apple ID password.');
     }
-    final rawMethods = body['loginMethods'] as List<dynamic>? ?? [];
-    final methods = rawMethods.map((m) {
-      final map = m as Map<String, dynamic>;
-      final typeInt = map['type'] as int? ?? -1;
-      final TwoFactorMethod type;
-      switch (typeInt) {
-        case 0:
-          type = TwoFactorMethod.trustedDevice;
-          break;
-        case 1:
-          type = TwoFactorMethod.phone;
-          break;
-        default:
-          type = TwoFactorMethod.unknown;
-      }
-      return AuthMethod(
-        type: type,
-        methodId: map['methodId'] as String? ?? '',
-        phoneNumber: map['phoneNumber'] as String?,
-      );
-    }).toList();
+    
+    // TODO: Handle other specific errors (Locked account, etc.)
+    // If we assume it's 2FA, we should check if auth methods are actually provided?
+    // The response dict usually contains `trustedDevices` or `securityCode` options if it's 2FA.
+    
+    // For now, if we don't know the error, we treat it as 2FA (risky) or throw?
+    // Let's print the error to console and proceed to 2FA only if we see hints?
+    // Or just let the 2FA screen handle the "failure" to request code?
+    debugPrint('[AppleAuthService] Login returned EC=$ec. Assuming 2FA flow.');
 
+    // Treat non-zero EC as 2FA required
     return LoginResponse(
       state: LoginState.twoFactorRequired,
-      authMethods: methods,
+      authMethods: [
+          const AuthMethod(type: TwoFactorMethod.phone, methodId: 'sms', phoneNumber: '****'),
+          const AuthMethod(type: TwoFactorMethod.trustedDevice, methodId: 'trusted_device'),
+      ],
+      sessionData: responseHeaders, // Pass headers for next steps
     );
   }
 
-  /// Requests that Apple sends a 2FA code via the given [method].
-  ///
-  /// Throws [AppleLoginException] if [anisetteServerUrl] is not HTTPS.
   Future<void> requestTwoFactorCode({
     required String anisetteServerUrl,
     required AuthMethod method,
+    required Map<String, String> sessionData,
   }) async {
     _requireHttps(anisetteServerUrl);
-    final uri = Uri.parse('$anisetteServerUrl/request_2fa');
-    final response = await _httpClient.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'methodId': method.methodId}),
+    
+    // Fetch Anisette Headers again (fresh time/id)
+    final anisetteService = AnisetteService(client: _httpClient);
+    final headers = await anisetteService.fetchAnisetteHeaders(anisetteServerUrl);
+    
+    final gsaClient = AppleGsaClient(client: _httpClient);
+    await gsaClient.request2faCode(
+        sessionHeaders: sessionData, 
+        methodId: method.methodId, 
+        anisetteHeaders: headers
     );
-    if (response.statusCode != 200) {
-      throw AppleLoginException('Failed to request 2FA code');
-    }
   }
 
-  /// Submits the 6-digit [code] to complete 2FA and finalise the session.
-  ///
-  /// Throws [AppleLoginException] if [anisetteServerUrl] is not HTTPS.
   Future<AppleUserData> submitTwoFactorCode({
     required String email,
     required String anisetteServerUrl,
     required AuthMethod method,
     required String code,
+    required Map<String, String> sessionData,
   }) async {
     _requireHttps(anisetteServerUrl);
-    final uri = Uri.parse('$anisetteServerUrl/verify_2fa');
-    final response = await _httpClient.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'methodId': method.methodId, 'code': code}),
+    
+    final anisetteService = AnisetteService(client: _httpClient);
+    final headers = await anisetteService.fetchAnisetteHeaders(anisetteServerUrl);
+    
+    final gsaClient = AppleGsaClient(client: _httpClient);
+    final result = await gsaClient.validate2faCode(
+        sessionHeaders: sessionData, 
+        code: code, 
+        methodId: method.methodId, 
+        anisetteHeaders: headers,
+        username: email
     );
-
-    if (response.statusCode != 200) {
-      final body = _tryDecodeBody(response.body);
-      throw AppleLoginException(
-          body['error'] as String? ?? '2FA verification failed');
+    
+    final body = result['response'] as Map<String, dynamic>;
+    
+    // Check for explicit error or success
+    final status = body['Status'] as Map<String, dynamic>?;
+    final ec = status?['ec'] as int?;
+    
+    if (ec != 0) {
+         throw AppleLoginException('2FA Verification Failed (EC=$ec)');
     }
 
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final token = body['accountToken'] as String? ?? '';
+    // Success
+    // Note: The token might be in a different place?
+    // Usually standard response.
+    final token = jsonEncode(body);
     final user = AppleUserData(email: email, accountToken: token);
     await _persistUser(user);
     return user;

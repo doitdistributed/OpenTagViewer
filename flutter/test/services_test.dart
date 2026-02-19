@@ -13,7 +13,7 @@ void main() {
     test('fetchServerSuggestions parses JSON response', () async {
       final client = MockClient((request) async {
         return http.Response(
-          jsonEncode({'SideStore': 'https://ani.sidestore.io'}),
+          jsonEncode({'SideStore': 'https://omni.parallel-ing.net/'}),
           200,
         );
       });
@@ -23,7 +23,7 @@ void main() {
 
       expect(suggestions, hasLength(1));
       expect(suggestions.first.name, 'SideStore');
-      expect(suggestions.first.url, 'https://ani.sidestore.io');
+      expect(suggestions.first.url, 'https://omni.parallel-ing.net/);
     });
 
     test('testServer returns true on HTTP 200', () async {
@@ -221,6 +221,7 @@ void main() {
           anisetteServerUrl: 'http://evil.example.com',
           method: const AuthMethod(
               type: TwoFactorMethod.phone, methodId: 'm1'),
+          sessionData: {},
         ),
         throwsA(isA<AppleLoginException>()),
       );
@@ -237,6 +238,7 @@ void main() {
           method: const AuthMethod(
               type: TwoFactorMethod.phone, methodId: 'm1'),
           code: '123456',
+          sessionData: {},
         ),
         throwsA(isA<AppleLoginException>()),
       );

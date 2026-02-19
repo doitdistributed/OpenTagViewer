@@ -92,6 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await context.read<AppState>().authService.requestTwoFactorCode(
         anisetteServerUrl: _anisetteController.text.trim(),
         method: method,
+        sessionData: _pendingLoginResponse!.sessionData!,
       );
     } catch (e) {
       if (!mounted) return;
@@ -122,6 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
         anisetteServerUrl: _anisetteController.text.trim(),
         method: method,
         code: _codeController.text.trim(),
+        sessionData: _pendingLoginResponse!.sessionData!,
       );
       if (!mounted) return;
       appState.setUser(user);
