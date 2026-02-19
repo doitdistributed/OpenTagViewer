@@ -1,0 +1,24 @@
+# Flutter / Dart build artifacts
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Android build outputs
+android/
+ios/
+
+# Generated files
+*.g.dart
+*.freezed.dart
+
+# Coverage
+coverage/
+
+# IDE files
+.idea/
+.vscode/
+*.iml

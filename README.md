@@ -27,9 +27,16 @@ This project is a relatively polished looking Android/Java UI-wrapper around the
 
 ## Features ⭐
 
-- View current "live" location of your AirTags **on Android**
+- View current "live" location of your AirTags **on Android** (and **iOS** via the [Flutter version](./flutter/README.md))
 - Track & (automatically) save historical location history of your AirTags (a feature notably missing from the iOS FindMy apps!)
 - UI customisation options
+
+## Implementations
+
+| Version | Language | Platform |
+|---------|----------|----------|
+| [Android (this project)](./app) | Java + Python (Chaquopy) | Android |
+| [Flutter](./flutter) | Dart / Flutter | Android + iOS |
 
 
 ## How To Use 📖
