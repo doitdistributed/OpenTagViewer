@@ -23,7 +23,7 @@ class AppState extends ChangeNotifier {
   AppleAuthService get authService => _authService;
 
   /// Exposed so that screens can reuse the configured service instance.
-  BeaconReportService get reportService => _reportService;
+  BeaconReportService get beaconReportService => _reportService;
 
   AppState({
     AppleAuthService? authService,

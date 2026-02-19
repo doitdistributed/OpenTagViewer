@@ -54,7 +54,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
 
     try {
-      final result = await appState.reportService.getReportsBetween(
+      final result = await appState.beaconReportService.getReportsBetween(
         accountToken: user.accountToken,
         beaconIdToPList: {widget.beacon.beaconId: plist},
         anisetteServerUrl: appState.anisetteServerUrl,
