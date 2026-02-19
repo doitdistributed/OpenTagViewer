@@ -7,9 +7,24 @@
 .pub/
 build/
 
-# Android build outputs
-android/
-ios/
+# Android build outputs and generated files
+android/.gradle/
+android/**/build/
+android/**/local.properties
+android/**/key.properties
+android/**/GeneratedPluginRegistrant.java
+
+# iOS build outputs and generated files
+ios/build/
+ios/Pods/
+ios/Flutter/.last_build_id
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/Runner/GeneratedPluginRegistrant.*
+ios/.symlinks/
 
 # Generated files
 *.g.dart

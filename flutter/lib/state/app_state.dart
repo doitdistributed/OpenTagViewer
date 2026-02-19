@@ -7,6 +7,9 @@ import '../services/apple_auth_service.dart';
 import '../services/anisette_service.dart' show AnisetteService;
 import '../services/beacon_report_service.dart';
 
+/// Sentinel indicating that no change should be made to a beacon override.
+const _keepOverride = Object();
+
 /// Application-wide state provider.
 ///
 /// Holds authentication state, the list of imported beacons, and their
@@ -14,6 +17,13 @@ import '../services/beacon_report_service.dart';
 class AppState extends ChangeNotifier {
   final AppleAuthService _authService;
   final BeaconReportService _reportService;
+
+  /// Exposed so that screens can reuse the configured service instance
+  /// rather than creating new instances with independent storage backends.
+  AppleAuthService get authService => _authService;
+
+  /// Exposed so that screens can reuse the configured service instance.
+  BeaconReportService get reportService => _reportService;
 
   AppState({
     AppleAuthService? authService,
@@ -67,13 +77,22 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Updates the display name and/or emoji override for a beacon.
+  ///
+  /// Pass `null` to explicitly clear an override and revert to the
+  /// original value stored in the plist, or omit the parameter to
+  /// leave the current value unchanged.
   void updateBeaconOverrides(
-      String beaconId, {String? name, String? emoji}) {
+      String beaconId, {
+      Object? name = _keepOverride,
+      Object? emoji = _keepOverride,
+  }) {
     final idx = _beacons.indexWhere((b) => b.beaconId == beaconId);
     if (idx < 0) return;
     final updated = _beacons[idx].copyWith(
-      userOverrideName: name,
-      userOverrideEmoji: emoji,
+      userOverrideName: identical(name, _keepOverride) ? _keepOverride : name,
+      userOverrideEmoji:
+          identical(emoji, _keepOverride) ? _keepOverride : emoji,
     );
     _beacons[idx] = updated;
     notifyListeners();

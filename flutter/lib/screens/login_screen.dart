@@ -46,10 +46,9 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     final appState = context.read<AppState>();
-    final authService = AppleAuthService();
 
     try {
-      final response = await authService.login(
+      final response = await appState.authService.login(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         anisetteServerUrl: _anisetteController.text.trim(),
@@ -90,7 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await AppleAuthService().requestTwoFactorCode(
+      await context.read<AppState>().authService.requestTwoFactorCode(
         anisetteServerUrl: _anisetteController.text.trim(),
         method: method,
       );
@@ -118,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final appState = context.read<AppState>();
 
     try {
-      final user = await AppleAuthService().submitTwoFactorCode(
+      final user = await appState.authService.submitTwoFactorCode(
         email: _emailController.text.trim(),
         anisetteServerUrl: _anisetteController.text.trim(),
         method: method,

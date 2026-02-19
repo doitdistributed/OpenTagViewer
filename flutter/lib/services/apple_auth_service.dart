@@ -105,6 +105,20 @@ class LoginResponse {
   });
 }
 
+/// Validates that [url] uses HTTPS. Throws [AppleLoginException] if it does not.
+///
+/// All authentication endpoints handle Apple ID credentials and session tokens,
+/// so cleartext HTTP connections must be rejected to prevent credential
+/// interception by on-path attackers.
+void _requireHttps(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || uri.scheme != 'https') {
+    throw AppleLoginException(
+        'Anisette server URL must use HTTPS to protect your credentials. '
+        'Received: $url');
+  }
+}
+
 /// Handles Apple account authentication via an Anisette server.
 ///
 /// Authentication follows the same flow used by the Android app:
@@ -114,6 +128,10 @@ class LoginResponse {
 ///
 /// Credentials are persisted via [CredentialStorage] (defaults to
 /// [SecureCredentialStorage] backed by [FlutterSecureStorage]).
+///
+/// > **Security note:** all methods reject non-HTTPS Anisette server URLs
+/// > to prevent cleartext transmission of Apple ID credentials and session
+/// > tokens.
 class AppleAuthService {
   static const String _keyEmail = 'apple_email';
   static const String _keyToken = 'apple_account_token';
@@ -142,11 +160,14 @@ class AppleAuthService {
   ///
   /// Returns a [LoginResponse] that describes whether the login succeeded
   /// immediately or whether 2FA is required.
+  ///
+  /// Throws [AppleLoginException] if [anisetteServerUrl] is not HTTPS.
   Future<LoginResponse> login({
     required String email,
     required String password,
     required String anisetteServerUrl,
   }) async {
+    _requireHttps(anisetteServerUrl);
     final uri = Uri.parse('$anisetteServerUrl/login');
     final response = await _httpClient.post(
       uri,
@@ -204,10 +225,13 @@ class AppleAuthService {
   }
 
   /// Requests that Apple sends a 2FA code via the given [method].
+  ///
+  /// Throws [AppleLoginException] if [anisetteServerUrl] is not HTTPS.
   Future<void> requestTwoFactorCode({
     required String anisetteServerUrl,
     required AuthMethod method,
   }) async {
+    _requireHttps(anisetteServerUrl);
     final uri = Uri.parse('$anisetteServerUrl/request_2fa');
     final response = await _httpClient.post(
       uri,
@@ -220,12 +244,15 @@ class AppleAuthService {
   }
 
   /// Submits the 6-digit [code] to complete 2FA and finalise the session.
+  ///
+  /// Throws [AppleLoginException] if [anisetteServerUrl] is not HTTPS.
   Future<AppleUserData> submitTwoFactorCode({
     required String email,
     required String anisetteServerUrl,
     required AuthMethod method,
     required String code,
   }) async {
+    _requireHttps(anisetteServerUrl);
     final uri = Uri.parse('$anisetteServerUrl/verify_2fa');
     final response = await _httpClient.post(
       uri,

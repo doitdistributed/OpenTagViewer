@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 
 import 'package:opentagviewer/services/apple_auth_service.dart';
 import 'package:opentagviewer/services/anisette_service.dart';
+import 'package:opentagviewer/services/beacon_report_service.dart';
 
 void main() {
   group('AnisetteService', () {
@@ -190,6 +191,167 @@ void main() {
 
       await service.logout();
       expect(await service.getStoredUser(), isNull);
+    });
+
+    test('login throws AppleLoginException for non-HTTPS URL', () {
+      final service = AppleAuthService(
+        storage: InMemoryCredentialStorage(),
+      );
+      expect(
+        () => service.login(
+          email: 'test@example.com',
+          password: 'pass',
+          anisetteServerUrl: 'http://evil.example.com',
+        ),
+        throwsA(
+          predicate<AppleLoginException>(
+            (e) => e.message.contains('HTTPS'),
+            'exception message should mention HTTPS',
+          ),
+        ),
+      );
+    });
+
+    test('requestTwoFactorCode throws for non-HTTPS URL', () {
+      final service = AppleAuthService(
+        storage: InMemoryCredentialStorage(),
+      );
+      expect(
+        () => service.requestTwoFactorCode(
+          anisetteServerUrl: 'http://evil.example.com',
+          method: const AuthMethod(
+              type: TwoFactorMethod.phone, methodId: 'm1'),
+        ),
+        throwsA(isA<AppleLoginException>()),
+      );
+    });
+
+    test('submitTwoFactorCode throws for non-HTTPS URL', () {
+      final service = AppleAuthService(
+        storage: InMemoryCredentialStorage(),
+      );
+      expect(
+        () => service.submitTwoFactorCode(
+          email: 'test@example.com',
+          anisetteServerUrl: 'http://evil.example.com',
+          method: const AuthMethod(
+              type: TwoFactorMethod.phone, methodId: 'm1'),
+          code: '123456',
+        ),
+        throwsA(isA<AppleLoginException>()),
+      );
+    });
+  });
+
+  group('BeaconReportService', () {
+    test('getLastReports returns empty map for empty beacon list', () async {
+      final service = BeaconReportService();
+      final result = await service.getLastReports(
+        accountToken: 'tok',
+        beaconIdToPList: {},
+        anisetteServerUrl: 'https://ani.example.com',
+      );
+      expect(result, isEmpty);
+    });
+
+    test('getLastReports throws for non-HTTPS URL', () {
+      final service = BeaconReportService();
+      expect(
+        () => service.getLastReports(
+          accountToken: 'tok',
+          beaconIdToPList: {'id': 'plist'},
+          anisetteServerUrl: 'http://evil.example.com',
+        ),
+        throwsA(
+          predicate<BeaconReportException>(
+            (e) => e.message.contains('HTTPS'),
+            'exception message should mention HTTPS',
+          ),
+        ),
+      );
+    });
+
+    test('getLastReports parses valid response', () async {
+      final client = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'beacon-1': [
+              {
+                'publishedAt': 1000,
+                'timestamp': 2000,
+                'latitude': 51.5,
+                'longitude': -0.1,
+                'confidence': 2,
+                'horizontalAccuracy': 10,
+                'status': 0,
+              }
+            ],
+          }),
+          200,
+        );
+      });
+
+      final service = BeaconReportService(client: client);
+      final result = await service.getLastReports(
+        accountToken: 'tok',
+        beaconIdToPList: {'beacon-1': 'plist'},
+        anisetteServerUrl: 'https://ani.example.com',
+      );
+
+      expect(result, contains('beacon-1'));
+      final reports = result['beacon-1']!;
+      expect(reports, hasLength(1));
+      expect(reports.first.latitude, 51.5);
+      expect(reports.first.longitude, -0.1);
+      expect(reports.first.confidence, 2);
+    });
+
+    test('getLastReports throws BeaconReportException on HTTP error', () async {
+      final client =
+          MockClient((request) async => http.Response('Server Error', 503));
+
+      final service = BeaconReportService(client: client);
+      expect(
+        () => service.getLastReports(
+          accountToken: 'tok',
+          beaconIdToPList: {'b': 'p'},
+          anisetteServerUrl: 'https://ani.example.com',
+        ),
+        throwsA(
+          predicate<BeaconReportException>(
+            (e) => e.message.contains('503'),
+            'error message should contain HTTP status code',
+          ),
+        ),
+      );
+    });
+
+    test('getLastReports throws BeaconReportException on malformed JSON',
+        () async {
+      final client = MockClient(
+          (request) async => http.Response('"not an object"', 200));
+
+      final service = BeaconReportService(client: client);
+      expect(
+        () => service.getLastReports(
+          accountToken: 'tok',
+          beaconIdToPList: {'b': 'p'},
+          anisetteServerUrl: 'https://ani.example.com',
+        ),
+        throwsA(isA<BeaconReportException>()),
+      );
+    });
+
+    test('getReportsBetween returns empty map for empty beacon list', () async {
+      final service = BeaconReportService();
+      final result = await service.getReportsBetween(
+        accountToken: 'tok',
+        beaconIdToPList: {},
+        anisetteServerUrl: 'https://ani.example.com',
+        startTimeMs: 0,
+        endTimeMs: 1000,
+      );
+      expect(result, isEmpty);
     });
   });
 }

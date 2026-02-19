@@ -91,6 +91,30 @@ void main() {
       expect(copy.batteryLevel, original.batteryLevel);
       expect(copy.userOverrideName, 'Copy Name');
     });
+
+    test('copyWith with null clears override', () {
+      final original = BeaconInformation(
+        beaconId: 'test-id',
+        originalName: 'Original',
+        userOverrideName: 'Override',
+      );
+      final cleared = original.copyWith(userOverrideName: null);
+      expect(cleared.userOverrideName, isNull);
+      // Falls back to originalName
+      expect(cleared.name, 'Original');
+    });
+
+    test('copyWith without arguments keeps existing overrides', () {
+      final original = BeaconInformation(
+        beaconId: 'test-id',
+        originalName: 'Original',
+        userOverrideName: 'Override',
+        userOverrideEmoji: '🚗',
+      );
+      final copy = original.copyWith();
+      expect(copy.userOverrideName, 'Override');
+      expect(copy.userOverrideEmoji, '🚗');
+    });
   });
 
   group('BeaconLocationReport', () {

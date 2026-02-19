@@ -36,10 +36,18 @@ class ImportData {
 /// BeaconNamingRecord/<beacon-uuid>/<naming-record-uuid>.plist
 /// ```
 class BeaconImportService {
-  static final _ownedBeaconPattern = RegExp(
-      r'^OwnedBeacons/([0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12})\.plist$');
-  static final _namingRecordPattern = RegExp(
-      r'^BeaconNamingRecord/([0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12})/([0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12})\.plist$');
+  /// UUID v4 hex group pattern (case-insensitive).
+  ///
+  /// The third group begins with '4' (version indicator) and the fourth group
+  /// starts with [89ABab] (variant indicator) as required by RFC 4122 §4.1.
+  /// Case-insensitive matching handles both upper- and lower-case exports.
+  static final _uuidV4 =
+      r'[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-4[0-9A-Fa-f]{3}-[89ABab][0-9A-Fa-f]{3}-[0-9A-Fa-f]{12}';
+
+  static late final _ownedBeaconPattern =
+      RegExp('^OwnedBeacons/($_uuidV4)\\.plist\$');
+  static late final _namingRecordPattern =
+      RegExp('^BeaconNamingRecord/($_uuidV4)/($_uuidV4)\\.plist\$');
   static final _exportInfoPattern = RegExp(r'^OPENTAGVIEWER\.yml$');
 
   /// Extracts and parses the contents of the zip [bytes].

@@ -1,3 +1,6 @@
+/// A sentinel value used to explicitly clear a nullable override in [BeaconInformation.copyWith].
+const _clearOverride = Object();
+
 /// Represents the information about a tracked beacon (e.g. an AirTag or other
 /// FindMy-compatible accessory).
 ///
@@ -83,9 +86,20 @@ class BeaconInformation {
 
   bool get isAirTag => productId == _airTagProductId;
 
+  /// Creates a copy with modified user override fields.
+  ///
+  /// Pass `null` to explicitly clear a field and revert to the original
+  /// value from the plist. Omit a parameter to leave the current value
+  /// unchanged (the default sentinel [_clearOverride] preserves whatever
+  /// override is already set).
+  /// ```dart
+  /// beacon.copyWith(userOverrideName: null)  // removes name override
+  /// beacon.copyWith(userOverrideName: 'New') // sets a new name override
+  /// beacon.copyWith()                        // no changes
+  /// ```
   BeaconInformation copyWith({
-    String? userOverrideName,
-    String? userOverrideEmoji,
+    Object? userOverrideName = _clearOverride,
+    Object? userOverrideEmoji = _clearOverride,
   }) {
     return BeaconInformation(
       beaconId: beaconId,
@@ -103,8 +117,12 @@ class BeaconInformation {
       stableIdentifier: stableIdentifier,
       systemVersion: systemVersion,
       vendorId: vendorId,
-      userOverrideName: userOverrideName ?? this.userOverrideName,
-      userOverrideEmoji: userOverrideEmoji ?? this.userOverrideEmoji,
+      userOverrideName: identical(userOverrideName, _clearOverride)
+          ? this.userOverrideName
+          : userOverrideName as String?,
+      userOverrideEmoji: identical(userOverrideEmoji, _clearOverride)
+          ? this.userOverrideEmoji
+          : userOverrideEmoji as String?,
     );
   }
 

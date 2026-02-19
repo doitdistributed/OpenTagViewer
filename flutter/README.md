@@ -57,7 +57,7 @@ flutter/
 
 ### Prerequisites
 
-- [Flutter SDK](https://docs.flutter.dev/get-started/install) ≥ 3.0
+- [Flutter SDK](https://docs.flutter.dev/get-started/install) ≥ 3.0.0 < 4.0.0 (stable channel recommended)
 
 ### Install dependencies
 

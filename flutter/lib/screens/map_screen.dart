@@ -158,6 +158,11 @@ class _MapScreenState extends State<MapScreen> {
           userAgentPackageName: 'dev.wander.opentagviewer',
         ),
         MarkerLayer(markers: markers),
+        const RichAttributionWidget(
+          attributions: [
+            TextSourceAttribution('© OpenStreetMap contributors'),
+          ],
+        ),
       ],
     );
   }

@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 
 import '../models/beacon_information.dart';
 import '../models/beacon_location_report.dart';
-import '../services/beacon_report_service.dart';
 import '../state/app_state.dart';
 
 /// Shows the location history for a single beacon on a map with a date picker.
@@ -55,8 +54,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
 
     try {
-      final service = BeaconReportService();
-      final result = await service.getReportsBetween(
+      final result = await appState.reportService.getReportsBetween(
         accountToken: user.accountToken,
         beaconIdToPList: {widget.beacon.beaconId: plist},
         anisetteServerUrl: appState.anisetteServerUrl,
@@ -220,6 +218,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ],
           ),
         MarkerLayer(markers: markers),
+        const RichAttributionWidget(
+          attributions: [
+            TextSourceAttribution('© OpenStreetMap contributors'),
+          ],
+        ),
       ],
     );
   }

@@ -23,6 +23,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _testingServer = false;
   String? _testResult;
 
+  /// Cached service instance – reused across suggestion fetches and server tests.
+  final AnisetteService _anisetteService = AnisetteService();
+
   @override
   void initState() {
     super.initState();
@@ -42,7 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _loadingSuggestions = true);
     try {
       final suggestions =
-          await AnisetteService().fetchServerSuggestions();
+          await _anisetteService.fetchServerSuggestions();
       if (!mounted) return;
       setState(() => _suggestions = suggestions);
     } catch (e) {
@@ -62,7 +65,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _testingServer = true;
       _testResult = null;
     });
-    final ok = await AnisetteService()
+    final ok = await _anisetteService
         .testServer(_anisetteController.text.trim());
     if (!mounted) return;
     setState(() {
